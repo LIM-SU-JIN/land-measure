@@ -529,7 +529,7 @@ function loadKakaoMap(key) {
   if (document.getElementById('kakao-sdk')) { onKakaoLoaded(); return; }
   const s = document.createElement('script');
   s.id = 'kakao-sdk';
-  s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${10bd447e7daa033d39d4405c55652920}&autoload=false`;
+  s.src = '//dapi.kakao.com/v2/maps/sdk.js?appkey=${10bd447e7daa033d39d4405c55652920}&autoload=false';
   s.onerror = () => {
     showToast('API 키가 올바르지 않거나 도메인 등록이 필요합니다.');
     document.getElementById('main-app').style.display = 'none';
