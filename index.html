@@ -1,826 +1,846 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>GPS 토지 면적 측정기</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  :root {
-    --primary: #1a73e8;
-    --primary-dark: #0d5ec9;
-    --danger: #e53935;
-    --success: #2e7d32;
-    --warn: #f57c00;
-    --bg: #ffffff;
-    --bg2: #f5f7fa;
-    --bg3: #eef1f5;
-    --text: #1a1a2e;
-    --text2: #555;
-    --text3: #888;
-    --border: #dde3ec;
-    --card: #ffffff;
-    --shadow: 0 2px 12px rgba(0,0,0,0.12);
-    --radius: 14px;
-    --accent: #ff6b35;
-  }
-  html, body { height: 100%; overflow: hidden; font-family: -apple-system, 'Noto Sans KR', sans-serif; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GPS 토지 면적 측정기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1c2333;
+      --border: #2a3547;
+      --accent: #00e5a0;
+      --accent2: #00b8ff;
+      --danger: #ff4f6a;
+      --warn: #ffb347;
+      --text: #e8edf5;
+      --text2: #8899aa;
+      --mono: 'Space Mono', monospace;
+      --sans: 'Noto Sans KR', sans-serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); height: 100dvh; overflow: hidden; position: relative; }
 
-  /* ── Layout ── */
-  #app { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
-  #map-container { flex: 1; position: relative; overflow: hidden; }
-  #map { width: 100%; height: 100%; }
+    /* ─── SETUP SCREEN ─── */
+    #setup-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .setup-logo {
+      font-family: var(--mono);
+      font-size: 13px; letter-spacing: 4px; color: var(--accent);
+      text-transform: uppercase; margin-bottom: 8px;
+    }
+    .setup-title {
+      font-size: 26px; font-weight: 700; text-align: center; margin-bottom: 4px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .setup-sub { color: var(--text2); font-size: 13px; text-align: center; margin-bottom: 32px; }
+    .setup-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; width: 100%; max-width: 420px;
+    }
+    .setup-card h3 { font-size: 14px; font-weight: 500; color: var(--accent); margin-bottom: 16px; letter-spacing: 1px; }
+    .setup-steps { list-style: none; margin-bottom: 20px; }
+    .setup-steps li {
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 13px; color: var(--text2); margin-bottom: 10px; line-height: 1.5;
+    }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
+      color: #000; font-size: 11px; font-weight: 700; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .setup-steps a { color: var(--accent2); text-decoration: none; }
+    .input-group { margin-bottom: 16px; }
+    .input-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; letter-spacing: 0.5px; }
+    .input-group input {
+      width: 100%; padding: 12px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; color: var(--text); font-family: var(--mono); font-size: 13px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .input-group input:focus { border-color: var(--accent); }
+    .input-group input::placeholder { color: var(--text2); opacity: 0.5; }
+    .btn-start {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none; border-radius: 12px; color: #000;
+      font-family: var(--sans); font-size: 16px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-start:active { transform: scale(0.98); opacity: 0.9; }
+    .err-msg { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
 
-  /* ── Top Bar ── */
-  #topbar {
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 10;
-    flex-shrink: 0;
-  }
-  .app-title { font-size: 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
-  .app-title svg { width: 20px; height: 20px; }
-  .map-type-group { display: flex; gap: 4px; }
-  .map-type-btn {
-    padding: 4px 10px;
-    font-size: 12px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--bg2);
-    color: var(--text2);
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.15s;
-  }
-  .map-type-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    /* ─── MAP ─── */
+    #app { display: none; position: fixed; inset: 0; }
+    #map { width: 100%; height: 100%; }
 
-  /* ── Map overlays ── */
-  #gps-badge {
-    position: absolute;
-    top: 10px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.72);
-    color: #fff;
-    padding: 5px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    z-index: 5;
-    pointer-events: none;
-    transition: opacity 0.3s;
-  }
-  #gps-badge.hidden { opacity: 0; }
-  .gps-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex-shrink: 0; }
-  .gps-dot.on { background: #4caf50; animation: blink 1.2s infinite; }
-  .gps-dot.warn { background: #ff9800; }
-  .gps-dot.err { background: #f44336; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    /* ─── TOP BAR ─── */
+    .top-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 10px 12px 8px;
+      background: linear-gradient(to bottom, rgba(10,14,26,0.95) 60%, transparent);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .map-type-btn {
+      padding: 7px 14px; border-radius: 20px;
+      background: rgba(17,24,39,0.85); backdrop-filter: blur(8px);
+      border: 1px solid var(--border); color: var(--text2);
+      font-family: var(--sans); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .map-type-btn.active {
+      background: var(--accent); border-color: var(--accent);
+      color: #000; font-weight: 700;
+    }
+    .top-spacer { flex: 1; }
+    .settings-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(17,24,39,0.85); backdrop-filter: blur(8px);
+      border: 1px solid var(--border); color: var(--text2);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 16px; flex-shrink: 0;
+    }
 
-  #area-overlay {
-    position: absolute;
-    bottom: 10px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255,255,255,0.95);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 8px 18px;
-    text-align: center;
-    z-index: 5;
-    pointer-events: none;
-    min-width: 200px;
-    box-shadow: var(--shadow);
-  }
-  #area-overlay .live-label { font-size: 11px; color: var(--text3); font-weight: 500; letter-spacing: 0.5px; }
-  #area-overlay .live-value { font-size: 22px; font-weight: 700; color: var(--primary); line-height: 1.2; }
-  #area-overlay .live-sub { font-size: 12px; color: var(--text2); }
+    /* ─── GPS ACCURACY BADGE ─── */
+    .gps-badge {
+      position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
+      z-index: 100; background: rgba(17,24,39,0.85); backdrop-filter: blur(8px);
+      border: 1px solid var(--border); border-radius: 20px;
+      padding: 4px 12px; font-family: var(--mono); font-size: 11px;
+      color: var(--text2); white-space: nowrap; transition: all 0.3s;
+    }
+    .gps-badge.good { color: var(--accent); border-color: var(--accent); }
+    .gps-badge.poor { color: var(--warn); border-color: var(--warn); }
+    .gps-badge.bad  { color: var(--danger); border-color: var(--danger); }
 
-  #locate-btn {
-    position: absolute;
-    top: 10px; right: 12px;
-    width: 38px; height: 38px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    z-index: 5;
-    box-shadow: var(--shadow);
-  }
+    /* ─── MY LOCATION BTN ─── */
+    .my-loc-btn {
+      position: fixed; right: 14px; bottom: 220px; z-index: 100;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 22px; transition: all 0.2s;
+    }
+    .my-loc-btn:active { transform: scale(0.92); }
+    .my-loc-btn.loading { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── Bottom Panel ── */
-  #bottom {
-    background: var(--bg);
-    border-top: 1px solid var(--border);
-    padding: 12px 14px 14px;
-    flex-shrink: 0;
-  }
-  #status-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--text3);
-    margin-bottom: 10px;
-    padding: 0 2px;
-  }
-  .stat-chip { display: flex; align-items: center; gap: 4px; }
-  .stat-num { font-weight: 600; color: var(--text2); }
+    /* ─── UNDO BTN ─── */
+    .undo-btn {
+      position: fixed; right: 14px; bottom: 278px; z-index: 100;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 20px; transition: all 0.2s;
+      color: var(--warn);
+    }
+    .undo-btn:active { transform: scale(0.92); }
 
-  #btn-row { display: flex; gap: 8px; }
-  .btn {
-    flex: 1;
-    height: 48px;
-    border-radius: 12px;
-    border: none;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    transition: transform 0.1s, opacity 0.15s;
-    -webkit-user-select: none;
-  }
-  .btn:active { transform: scale(0.96); }
-  .btn:disabled { opacity: 0.38; cursor: not-allowed; }
-  .btn-start { background: var(--success); color: #fff; }
-  .btn-stop  { background: var(--danger); color: #fff; }
-  .btn-reset { background: var(--bg3); color: var(--text2); flex: 0.6; }
-  .btn-list  { background: var(--bg3); color: var(--text2); flex: 0.6; }
+    /* ─── BOTTOM PANEL ─── */
+    .bottom-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(11,17,28,0.97); backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0;
+      padding: 16px 16px 28px;
+    }
+    .panel-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border); margin: 0 auto 16px;
+    }
 
-  /* ── Modal backdrop ── */
-  .modal-backdrop {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.45);
-    z-index: 100;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .modal-backdrop.hidden { display: none; }
+    /* Area display */
+    .area-display {
+      display: flex; gap: 10px; margin-bottom: 16px;
+    }
+    .area-card {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .area-card .unit { font-size: 11px; color: var(--text2); margin-bottom: 4px; letter-spacing: 0.5px; }
+    .area-card .value {
+      font-family: var(--mono); font-size: 22px; font-weight: 700;
+      color: var(--accent); line-height: 1.1;
+    }
+    .area-card .value.zero { color: var(--text2); }
+    .area-card .sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
 
-  .modal-sheet {
-    background: var(--bg);
-    border-radius: 20px 20px 0 0;
-    width: 100%;
-    max-width: 520px;
-    padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0));
-    max-height: 80vh;
-    overflow-y: auto;
-  }
-  .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
-  .sheet-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-  .sheet-sub { font-size: 13px; color: var(--text3); margin-bottom: 16px; line-height: 1.6; }
-  .sheet-sub a { color: var(--primary); }
+    /* Point info */
+    .point-info {
+      display: flex; gap: 8px; margin-bottom: 14px; justify-content: space-between;
+    }
+    .info-chip {
+      background: var(--surface2); border-radius: 8px; padding: 6px 10px;
+      font-size: 12px; color: var(--text2); flex: 1; text-align: center;
+    }
+    .info-chip span { color: var(--text); font-family: var(--mono); font-weight: 700; }
 
-  .input-field {
-    width: 100%;
-    padding: 13px 14px;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    font-size: 15px;
-    color: var(--text);
-    background: var(--bg2);
-    margin-bottom: 12px;
-    outline: none;
-    -webkit-appearance: none;
-  }
-  .input-field:focus { border-color: var(--primary); background: var(--bg); }
-  .input-field::placeholder { color: var(--text3); }
+    /* Control buttons */
+    .ctrl-row { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; padding: 14px 8px; border-radius: 12px; border: none;
+      font-family: var(--sans); font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s; display: flex;
+      align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #00c87a);
+      color: #000;
+    }
+    .btn-stop {
+      background: linear-gradient(135deg, var(--danger), #d63650);
+      color: #fff;
+    }
+    .btn-reset {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text2); flex: 0.5;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-  .btn-full {
-    width: 100%;
-    height: 50px;
-    border-radius: 12px;
-    border: none;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    background: var(--primary);
-    color: #fff;
-    margin-bottom: 8px;
-    transition: background 0.15s;
-  }
-  .btn-full:active { background: var(--primary-dark); }
-  .btn-full.secondary { background: var(--bg3); color: var(--text2); }
+    /* Status indicator */
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text2); flex-shrink: 0;
+    }
+    .status-dot.recording {
+      background: var(--danger);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
 
-  /* Saved list */
-  .saved-item {
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    background: var(--bg2);
-  }
-  .saved-area-big { font-size: 18px; font-weight: 700; color: var(--primary); }
-  .saved-area-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
-  .saved-date { font-size: 11px; color: var(--text3); text-align: right; }
-  .del-btn {
-    margin-top: 6px;
-    padding: 3px 10px;
-    border: 1px solid #ffcdd2;
-    border-radius: 6px;
-    background: #fff;
-    color: var(--danger);
-    font-size: 11px;
-    cursor: pointer;
-    font-weight: 600;
-  }
-  .empty-msg { text-align: center; padding: 32px 0; color: var(--text3); font-size: 14px; }
+    /* Toast notification */
+    .toast {
+      position: fixed; top: 100px; left: 50%; transform: translateX(-50%) translateY(-10px);
+      z-index: 999; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 18px; font-size: 13px; color: var(--text);
+      opacity: 0; pointer-events: none; transition: all 0.3s;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 160px; left: 50%;
-    transform: translateX(-50%) translateY(10px);
-    background: rgba(20,20,30,0.88);
-    color: #fff;
-    padding: 9px 20px;
-    border-radius: 22px;
-    font-size: 13px;
-    font-weight: 500;
-    z-index: 200;
-    opacity: 0;
-    transition: opacity 0.25s, transform 0.25s;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    /* Tracking path pulse overlay */
+    .track-indicator {
+      position: fixed; top: 58px; right: 14px; z-index: 100;
+      display: none; align-items: center; gap: 6px;
+      background: rgba(255,79,106,0.15); border: 1px solid var(--danger);
+      border-radius: 20px; padding: 4px 10px;
+      font-size: 11px; color: var(--danger); font-family: var(--mono);
+    }
+    .track-indicator.active { display: flex; }
 
-  /* Walking indicator */
-  #walk-ring {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 4;
-    display: none;
-  }
-  #walk-ring.active { display: block; }
-  .ring-circle {
-    width: 20px; height: 20px;
-    border: 2px solid var(--accent);
-    border-radius: 50%;
-    animation: ripple 1.5s infinite ease-out;
-  }
-  @keyframes ripple {
-    0% { transform: scale(1); opacity: 0.9; }
-    100% { transform: scale(4); opacity: 0; }
-  }
-</style>
+    /* Kakao map custom marker pulse */
+    .cur-loc-pulse {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(0,229,160,0.3);
+      animation: locPulse 2s ease-out infinite;
+    }
+    @keyframes locPulse {
+      0%   { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+  </style>
 </head>
 <body>
+
+<!-- ─── SETUP SCREEN ─── -->
+<div id="setup-screen">
+  <div class="setup-logo">GPS · LAND SURVEYOR</div>
+  <div class="setup-title">토지 면적 측정기</div>
+  <div class="setup-sub">걸으면서 자동으로 면적을 측정합니다</div>
+
+  <div class="setup-card">
+    <h3>📡 카카오맵 API 키 설정</h3>
+    <ol class="setup-steps">
+      <li>
+        <span class="step-num">1</span>
+        <span><a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a> 접속 후 로그인</span>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <span>내 애플리케이션 → 애플리케이션 추가 → 앱 생성</span>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <span>앱 설정 → 플랫폼 → Web 플랫폼 등록<br>
+          <strong style="color:var(--warn)">사이트 도메인에 배포할 주소 입력</strong><br>
+          (테스트: http://localhost, http://127.0.0.1)</span>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <span>앱 키 → <strong style="color:var(--accent)">JavaScript 키</strong> 복사 후 아래 입력</span>
+      </li>
+    </ol>
+
+    <div class="input-group">
+      <label>KAKAO JAVASCRIPT API KEY</label>
+      <input type="text" id="api-key-input" placeholder="JavaScript 키를 입력하세요" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="err-msg" id="err-msg">⚠ API 키를 입력하거나 올바른 키를 확인해주세요.</div>
+    <button class="btn-start" onclick="initApp()">🗺 지도 시작하기</button>
+  </div>
+</div>
+
+<!-- ─── MAIN APP ─── -->
 <div id="app">
-  <!-- Top bar -->
-  <div id="topbar">
-    <div class="app-title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)">
-        <polygon points="3,3 21,12 3,21 7,12"/>
-      </svg>
-      GPS 면적 측정기
-    </div>
-    <div class="map-type-group">
-      <button class="map-type-btn active" onclick="setMapType('ROADMAP',this)">일반</button>
-      <button class="map-type-btn" onclick="setMapType('SKYVIEW',this)">항공</button>
-      <button class="map-type-btn" onclick="setMapType('HYBRID',this)">하이브리드</button>
-    </div>
+  <div id="map"></div>
+
+  <!-- Top bar: map type -->
+  <div class="top-bar">
+    <button class="map-type-btn active" id="btn-road" onclick="setMapType('road')">일반</button>
+    <button class="map-type-btn" id="btn-sky" onclick="setMapType('sky')">항공</button>
+    <button class="map-type-btn" id="btn-hybrid" onclick="setMapType('hybrid')">항공+도로</button>
+    <button class="map-type-btn" id="btn-cadastral" onclick="setMapType('cadastral')">지적도</button>
+    <div class="top-spacer"></div>
+    <div class="settings-btn" onclick="showSetup()" title="API 키 변경">⚙</div>
   </div>
 
-  <!-- Map -->
-  <div id="map-container">
-    <div id="map"></div>
+  <!-- GPS badge -->
+  <div class="gps-badge" id="gps-badge">📡 GPS 대기 중...</div>
 
-    <!-- GPS status badge -->
-    <div id="gps-badge">
-      <div class="gps-dot" id="gps-dot"></div>
-      <span id="gps-text">GPS 초기화 중...</span>
-    </div>
-
-    <!-- Area live overlay -->
-    <div id="area-overlay">
-      <div class="live-label">측정 면적</div>
-      <div class="live-value"><span id="ov-m2">0.00</span> <span style="font-size:13px;font-weight:500;color:var(--text3)">m²</span></div>
-      <div class="live-sub" id="ov-sub">걷기 시작하면 자동 계산됩니다</div>
-    </div>
-
-    <!-- Locate button -->
-    <div id="locate-btn" onclick="goToMyLocation()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
-      </svg>
-    </div>
-
-    <div id="walk-ring"><div class="ring-circle"></div></div>
+  <!-- Track indicator -->
+  <div class="track-indicator" id="track-indicator">
+    <div class="status-dot recording"></div>
+    <span id="track-dist">0.0m</span>
   </div>
+
+  <!-- My location btn -->
+  <div class="my-loc-btn" id="my-loc-btn" onclick="goToMyLocation()" title="내 위치로 이동">📍</div>
+
+  <!-- Undo btn -->
+  <div class="undo-btn" onclick="undoLastPoint()" title="마지막 점 취소">↩</div>
 
   <!-- Bottom panel -->
-  <div id="bottom">
-    <div id="status-row">
-      <div class="stat-chip">
-        <span>포인트</span>
-        <span class="stat-num" id="s-pts">0</span>
-        <span>개</span>
+  <div class="bottom-panel">
+    <div class="panel-handle"></div>
+
+    <!-- Area cards -->
+    <div class="area-display">
+      <div class="area-card">
+        <div class="unit">㎡ 평방미터</div>
+        <div class="value zero" id="area-m2">0.00</div>
+        <div class="sub" id="area-sub">면적 측정 시작</div>
       </div>
-      <div class="stat-chip">
-        <span>거리</span>
-        <span class="stat-num" id="s-dist">0</span>
-        <span>m</span>
-      </div>
-      <div class="stat-chip">
-        <span>정확도</span>
-        <span class="stat-num" id="s-acc">-</span>
-        <span>m</span>
+      <div class="area-card">
+        <div class="unit">평 (坪)</div>
+        <div class="value zero" id="area-pyeong">0.00</div>
+        <div class="sub" id="pyeong-sub">1평 = 3.3058㎡</div>
       </div>
     </div>
-    <div id="btn-row">
-      <button class="btn btn-start" id="btn-start" onclick="startTracking()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 0 0-10 10h3a7 7 0 0 1 7-7V2zm0 20a10 10 0 0 0 10-10h-3a7 7 0 0 1-7 7v3zM2 12a10 10 0 0 0 10 10v-3a7 7 0 0 1-7-7H2zm20 0a10 10 0 0 0-10-10V5a7 7 0 0 1 7 7h3z" fill="rgba(255,255,255,0.6)"/></svg>
-        측정 시작
+
+    <!-- Point info -->
+    <div class="point-info">
+      <div class="info-chip">점 <span id="point-count">0</span>개</div>
+      <div class="info-chip">둘레 <span id="perimeter">0.0</span>m</div>
+      <div class="info-chip">정확도 ±<span id="accuracy-val">-</span>m</div>
+    </div>
+
+    <!-- Control buttons -->
+    <div class="ctrl-row">
+      <button class="btn btn-primary" id="btn-start" onclick="startTracking()">
+        <div class="status-dot" id="start-dot"></div> 측정 시작
       </button>
-      <button class="btn btn-stop" id="btn-stop" onclick="stopTracking()" disabled>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-        완료
+      <button class="btn btn-stop" id="btn-stop" onclick="stopTracking()" style="display:none">
+        <div class="status-dot recording"></div> 측정 중지
       </button>
-      <button class="btn btn-reset" onclick="resetAll()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 9M21 3v6h-6"/></svg>
-        초기화
-      </button>
-      <button class="btn btn-list" onclick="showSavedList()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        목록
-      </button>
+      <button class="btn btn-reset" id="btn-reset" onclick="resetTracking()">초기화</button>
     </div>
   </div>
-</div>
 
-<!-- Toast -->
-<div id="toast"></div>
-
-<!-- ══ API Key Modal ══ -->
-<div class="modal-backdrop" id="modal-apikey">
-  <div class="modal-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">🔑 카카오맵 API 키 설정</div>
-    <div class="sheet-sub">
-      <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a>에서 앱을 생성하고<br>
-      <strong>JavaScript 키</strong>를 입력하세요.<br><br>
-      ⚠️ <strong>플랫폼 등록 필수:</strong><br>
-      앱 설정 → 플랫폼 → Web에 사용할 도메인을 추가해야 합니다.<br>
-      (예: <code>https://yourname.github.io</code> 또는 <code>http://localhost:3000</code>)
-    </div>
-    <input class="input-field" type="text" id="api-key-input" placeholder="ae20583b8958dce8eed6fb8f0d9179cf" autocomplete="off" autocorrect="off" spellcheck="false">
-    <button class="btn-full" onclick="confirmApiKey()">지도 로드하기</button>
-    <div style="font-size:12px; color:var(--text3); text-align:center; margin-top:4px;">
-      키는 이 기기에만 저장됩니다 (localStorage)
-    </div>
-  </div>
-</div>
-
-<!-- ══ Saved List Modal ══ -->
-<div class="modal-backdrop hidden" id="modal-list">
-  <div class="modal-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">저장된 측정 목록</div>
-    <div id="saved-list-content"></div>
-    <button class="btn-full secondary" onclick="closeModal('modal-list')">닫기</button>
-  </div>
-</div>
-
-<!-- ══ Result Modal ══ -->
-<div class="modal-backdrop hidden" id="modal-result">
-  <div class="modal-sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">📐 측정 완료</div>
-    <div style="background:var(--bg2); border-radius:12px; padding:16px 20px; margin-bottom:14px; text-align:center;">
-      <div style="font-size:13px; color:var(--text3); margin-bottom:4px;">측정 면적</div>
-      <div style="font-size:36px; font-weight:700; color:var(--primary);" id="res-m2">0</div>
-      <div style="font-size:14px; color:var(--text2);">m²</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:14px;">
-        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
-          <div style="font-size:11px; color:var(--text3);">평</div>
-          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-pyeong">0</div>
-        </div>
-        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
-          <div style="font-size:11px; color:var(--text3);">ha</div>
-          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-ha">0</div>
-        </div>
-        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
-          <div style="font-size:11px; color:var(--text3);">포인트</div>
-          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-pts">0</div>
-        </div>
-      </div>
-    </div>
-    <button class="btn-full" onclick="saveAndClose()">저장하고 닫기</button>
-    <button class="btn-full secondary" onclick="closeModal('modal-result')">닫기 (저장 안 함)</button>
-  </div>
+  <div class="toast" id="toast"></div>
 </div>
 
 <script>
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════
+   ★ API 키 설정 (여기에 입력하세요)
+════════════════════════════════════ */
+const KAKAO_API_KEY = '54bc301c1eaaaaab6dc26101d6649e53'; // ← 본인의 JavaScript 키 입력
+
+/* ════════════════════════════════════
    STATE
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+════════════════════════════════════ */
 let map = null;
-let isTracking = false;
-let trackPoints = [];    // [{lat, lng}]
 let watchId = null;
-let curMarker = null;    // current position marker
-let polyline = null;
+let isTracking = false;
+let pathPoints = [];      // [{lat, lng}]
+let polylinePath = null;
 let polygon = null;
-let lastFinalArea = 0;
-let totalDist = 0;
-let MIN_MOVE_METERS = 2; // minimum movement to register a point
+let curLocMarker = null;
+let curLocOverlay = null;
+let currentMapType = 'road';
+let cadastralOverlay = false;
+let lastPosition = null;
+let totalDistance = 0;
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   INIT
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-window.addEventListener('load', () => {
-  const saved = localStorage.getItem('kakao_app_key');
-  if (saved) {
-    document.getElementById('api-key-input').value = saved;
-    document.getElementById('modal-apikey').style.display = 'none';
-    loadKakao(saved);
-  }
-  startGpsWatch(); // start watching GPS immediately for status
-});
+const MIN_DIST = 1.5;   // meters - min distance before new point
 
-function confirmApiKey() {
+/* ════════════════════════════════════
+   SETUP
+════════════════════════════════════ */
+function initApp() {
   const key = document.getElementById('api-key-input').value.trim();
-  if (!key) { toast('API 키를 입력해주세요.'); return; }
-  localStorage.setItem('kakao_app_key', key);
-  closeModal('modal-apikey');
-  loadKakao(key);
+  if (!key || key.length < 10) {
+    document.getElementById('err-msg').style.display = 'block';
+    return;
+  }
+  localStorage.setItem('kakao_api_key', key);
+  document.getElementById('err-msg').style.display = 'none';
+  loadKakaoScript(key);
 }
 
-function loadKakao(key) {
-  const s = document.createElement('script');
-  s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&autoload=false`;
-  s.onerror = () => {
-    toast('❌ API 키 오류 또는 도메인 미등록');
-    document.getElementById('modal-apikey').style.display = 'flex';
-    localStorage.removeItem('kakao_app_key');
-  };
-  s.onload = () => {
+function showSetup() {
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  const key = localStorage.getItem('kakao_api_key') || '';
+  document.getElementById('api-key-input').value = key;
+}
+
+function loadKakaoScript(apiKey) {
+  const existing = document.querySelector('script[data-kakao]');
+  if (existing) existing.remove();
+
+  const script = document.createElement('script');
+  script.setAttribute('data-kakao', '1');
+  script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&autoload=false`;
+  script.onload = () => {
     kakao.maps.load(() => {
+      document.getElementById('setup-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
       initMap();
     });
   };
-  document.head.appendChild(s);
+  script.onerror = () => {
+    document.getElementById('err-msg').textContent = '⚠ API 키 오류 또는 도메인 미등록. 카카오 개발자 콘솔에서 Web 플랫폼 도메인을 확인하세요.';
+    document.getElementById('err-msg').style.display = 'block';
+  };
+  document.head.appendChild(script);
 }
 
+// Auto-load: 코드에 키가 있으면 즉시 실행, 없으면 저장된 키 사용
+window.addEventListener('DOMContentLoaded', () => {
+  if (KAKAO_API_KEY && KAKAO_API_KEY !== 'YOUR_KAKAO_API_KEY_HERE') {
+    // 코드에 하드코딩된 키 사용 → setup 화면 건너뜀
+    loadKakaoScript(KAKAO_API_KEY);
+  } else {
+    // 저장된 키가 있으면 자동 로드
+    const savedKey = localStorage.getItem('kakao_api_key');
+    if (savedKey) {
+      document.getElementById('api-key-input').value = savedKey;
+      loadKakaoScript(savedKey);
+    }
+    // 둘 다 없으면 setup 화면 유지
+  }
+});
+
+/* ════════════════════════════════════
+   MAP INIT
+════════════════════════════════════ */
 function initMap() {
   const container = document.getElementById('map');
-  const opts = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
-  map = new kakao.maps.Map(container, opts);
+  const options = {
+    center: new kakao.maps.LatLng(37.5665, 126.9780),
+    level: 3
+  };
+  map = new kakao.maps.Map(container, options);
 
-  // Try to center on user's current location
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
-      updateCurMarker(pos.coords.latitude, pos.coords.longitude);
-    }, null, { enableHighAccuracy: true, timeout: 8000 });
+  // Start GPS watch (always on for location tracking)
+  startGpsWatch();
+
+  // Try get initial location
+  goToMyLocation();
+}
+
+/* ════════════════════════════════════
+   MAP TYPE
+════════════════════════════════════ */
+function setMapType(type) {
+  if (!map) return;
+  currentMapType = type;
+
+  // Remove cadastral overlay
+  map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+
+  document.querySelectorAll('.map-type-btn').forEach(b => b.classList.remove('active'));
+
+  switch(type) {
+    case 'road':
+      map.setMapTypeId(kakao.maps.MapTypeId.ROADMAP);
+      document.getElementById('btn-road').classList.add('active');
+      break;
+    case 'sky':
+      map.setMapTypeId(kakao.maps.MapTypeId.SKYVIEW);
+      document.getElementById('btn-sky').classList.add('active');
+      break;
+    case 'hybrid':
+      map.setMapTypeId(kakao.maps.MapTypeId.HYBRID);
+      document.getElementById('btn-hybrid').classList.add('active');
+      break;
+    case 'cadastral':
+      map.setMapTypeId(kakao.maps.MapTypeId.HYBRID);
+      map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+      document.getElementById('btn-cadastral').classList.add('active');
+      break;
   }
 }
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   GPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ════════════════════════════════════
+   GPS WATCH
+════════════════════════════════════ */
 function startGpsWatch() {
   if (!navigator.geolocation) {
-    setGpsStatus('err', 'GPS 미지원');
+    showToast('❌ 이 기기는 GPS를 지원하지 않습니다');
     return;
   }
-  setGpsStatus('warn', 'GPS 초기화 중...');
-
   watchId = navigator.geolocation.watchPosition(
-    onGpsUpdate,
-    onGpsError,
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    onPositionUpdate,
+    onPositionError,
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
   );
 }
 
-function onGpsUpdate(pos) {
+function onPositionUpdate(pos) {
   const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-  document.getElementById('s-acc').textContent = accuracy < 1000 ? accuracy.toFixed(0) : '낮음';
-  setGpsStatus('on', isTracking ? 'GPS 추적 중' : 'GPS 연결됨');
+  lastPosition = { lat, lng, accuracy };
 
-  if (map) updateCurMarker(lat, lng);
-  if (!isTracking) return;
+  // Update GPS badge
+  const badge = document.getElementById('gps-badge');
+  document.getElementById('accuracy-val').textContent = Math.round(accuracy);
+  if (accuracy <= 10) {
+    badge.textContent = `📡 GPS 정확도 ±${Math.round(accuracy)}m (우수)`;
+    badge.className = 'gps-badge good';
+  } else if (accuracy <= 25) {
+    badge.textContent = `📡 GPS 정확도 ±${Math.round(accuracy)}m (보통)`;
+    badge.className = 'gps-badge';
+  } else {
+    badge.textContent = `📡 GPS 정확도 ±${Math.round(accuracy)}m (불량)`;
+    badge.className = 'gps-badge poor';
+  }
 
-  const newPt = { lat, lng };
-  const prev = trackPoints[trackPoints.length - 1];
+  // Update current location marker
+  updateCurLocMarker(lat, lng);
 
-  // Skip if not moved enough (reduces GPS noise)
-  if (prev && getDistance(prev, newPt) < MIN_MOVE_METERS) return;
+  // If tracking, add point
+  if (isTracking) {
+    addTrackPoint(lat, lng);
+  }
+}
 
-  // Skip obviously bad accuracy (> 30m while measuring)
-  if (accuracy > 50) {
-    setGpsStatus('warn', `정확도 낮음 (${accuracy.toFixed(0)}m)`);
+function onPositionError(err) {
+  const badge = document.getElementById('gps-badge');
+  badge.textContent = '📡 GPS 신호 없음';
+  badge.className = 'gps-badge bad';
+}
+
+/* ════════════════════════════════════
+   MY LOCATION
+════════════════════════════════════ */
+function goToMyLocation() {
+  const btn = document.getElementById('my-loc-btn');
+  btn.classList.add('loading');
+
+  if (lastPosition) {
+    map.setCenter(new kakao.maps.LatLng(lastPosition.lat, lastPosition.lng));
+    map.setLevel(3);
+    btn.classList.remove('loading');
     return;
   }
 
-  if (prev) totalDist += getDistance(prev, newPt);
-  trackPoints.push(newPt);
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
+      map.setLevel(3);
+      btn.classList.remove('loading');
+    },
+    (err) => {
+      btn.classList.remove('loading');
+      showToast('📍 위치를 가져올 수 없습니다');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
 
-  document.getElementById('s-pts').textContent = trackPoints.length;
-  document.getElementById('s-dist').textContent = totalDist.toFixed(0);
+function updateCurLocMarker(lat, lng) {
+  if (!map) return;
+  const latlng = new kakao.maps.LatLng(lat, lng);
 
-  if (map) {
-    map.setCenter(new kakao.maps.LatLng(lat, lng));
-    redrawPath();
-    if (trackPoints.length >= 3) {
-      const a = calcArea();
-      updateAreaOverlay(a);
-    }
+  if (curLocMarker) {
+    curLocMarker.setPosition(latlng);
+    return;
   }
+
+  // Create custom current location marker
+  const content = `<div style="
+    position:relative; width:24px; height:24px;
+    display:flex; align-items:center; justify-content:center;
+  ">
+    <div style="
+      position:absolute; width:24px; height:24px; border-radius:50%;
+      background:rgba(0,229,160,0.25); animation:locPulse 2s ease-out infinite;
+    "></div>
+    <div style="
+      width:12px; height:12px; border-radius:50%;
+      background:#00e5a0; border:2px solid #fff;
+      box-shadow:0 0 8px rgba(0,229,160,0.8); position:relative; z-index:1;
+    "></div>
+  </div>`;
+
+  curLocOverlay = new kakao.maps.CustomOverlay({
+    position: latlng,
+    content: content,
+    yAnchor: 0.5, xAnchor: 0.5,
+    zIndex: 10
+  });
+  curLocOverlay.setMap(map);
+
+  // Simple reference point
+  curLocMarker = { setPosition: (p) => curLocOverlay.setPosition(p) };
 }
 
-function onGpsError(err) {
-  const msgs = { 1: '위치 권한 거부됨', 2: 'GPS 신호 없음', 3: 'GPS 시간 초과' };
-  setGpsStatus('err', msgs[err.code] || 'GPS 오류');
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   TRACKING CONTROLS
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ════════════════════════════════════
+   TRACKING
+════════════════════════════════════ */
 function startTracking() {
-  if (!map) { toast('먼저 API 키를 입력해주세요'); document.getElementById('modal-apikey').style.display='flex'; return; }
-
+  if (!lastPosition) {
+    showToast('📡 GPS 신호를 기다리는 중입니다...');
+    return;
+  }
   isTracking = true;
-  trackPoints = [];
-  totalDist = 0;
-  clearDrawings();
+  pathPoints = [];
+  totalDistance = 0;
 
-  document.getElementById('btn-start').disabled = true;
-  document.getElementById('btn-stop').disabled = false;
-  document.getElementById('s-pts').textContent = '0';
-  document.getElementById('s-dist').textContent = '0';
-  document.getElementById('walk-ring').classList.add('active');
-  updateAreaOverlay(0);
-  setGpsStatus('on', 'GPS 추적 중');
-  toast('✅ 측정 시작! 걷기 시작하세요');
+  clearMapObjects();
+
+  document.getElementById('btn-start').style.display = 'none';
+  document.getElementById('btn-stop').style.display = 'flex';
+  document.getElementById('track-indicator').classList.add('active');
+
+  // Add first point immediately
+  addTrackPoint(lastPosition.lat, lastPosition.lng);
+
+  showToast('🔴 측정 시작! 걸어서 영역을 그려주세요');
 }
 
 function stopTracking() {
   isTracking = false;
-  document.getElementById('btn-start').disabled = false;
-  document.getElementById('btn-stop').disabled = true;
-  document.getElementById('walk-ring').classList.remove('active');
-  setGpsStatus('on', 'GPS 연결됨');
 
-  if (trackPoints.length < 3) {
-    toast('⚠️ 최소 3포인트 이상 필요합니다 (더 걸어주세요)');
-    return;
-  }
+  document.getElementById('btn-start').style.display = 'flex';
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('track-indicator').classList.remove('active');
 
-  drawFinalPolygon();
-  lastFinalArea = calcArea();
-  showResult(lastFinalArea);
-}
-
-function resetAll() {
-  isTracking = false;
-  trackPoints = [];
-  totalDist = 0;
-  clearDrawings();
-  document.getElementById('btn-start').disabled = false;
-  document.getElementById('btn-stop').disabled = true;
-  document.getElementById('walk-ring').classList.remove('active');
-  document.getElementById('s-pts').textContent = '0';
-  document.getElementById('s-dist').textContent = '0';
-  updateAreaOverlay(0);
-  toast('초기화 완료');
-}
-
-function goToMyLocation() {
-  if (!map || !navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(pos => {
-    map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
-    map.setLevel(4);
-  });
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   MAP DRAWING
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function updateCurMarker(lat, lng) {
-  if (!map) return;
-  const pos = new kakao.maps.LatLng(lat, lng);
-  if (curMarker) {
-    curMarker.setPosition(pos);
+  if (pathPoints.length >= 3) {
+    drawPolygon();
+    showToast(`✅ 측정 완료! 총 ${pathPoints.length}개 점`);
   } else {
-    curMarker = new kakao.maps.CustomOverlay({
-      position: pos,
-      content: `<div style="width:16px;height:16px;background:#1a73e8;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
-      zIndex: 10
-    });
-    curMarker.setMap(map);
+    showToast('⚠ 최소 3개 이상의 점이 필요합니다');
   }
 }
 
-function redrawPath() {
-  if (polyline) polyline.setMap(null);
-  if (polygon) polygon.setMap(null);
+function resetTracking() {
+  isTracking = false;
+  pathPoints = [];
+  totalDistance = 0;
+  clearMapObjects();
 
-  const path = trackPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
-  if (path.length < 2) return;
+  document.getElementById('btn-start').style.display = 'flex';
+  document.getElementById('btn-stop').style.display = 'none';
+  document.getElementById('track-indicator').classList.remove('active');
 
-  polyline = new kakao.maps.Polyline({
-    map, path,
-    strokeWeight: 4,
-    strokeColor: '#ff6b35',
-    strokeOpacity: 0.9,
-    strokeStyle: 'solid'
-  });
+  document.getElementById('area-m2').textContent = '0.00';
+  document.getElementById('area-m2').className = 'value zero';
+  document.getElementById('area-pyeong').textContent = '0.00';
+  document.getElementById('area-pyeong').className = 'value zero';
+  document.getElementById('area-sub').textContent = '면적 측정 시작';
+  document.getElementById('point-count').textContent = '0';
+  document.getElementById('perimeter').textContent = '0.0';
+  document.getElementById('track-dist').textContent = '0.0m';
+  showToast('🔄 초기화 완료');
+}
 
-  if (path.length >= 3) {
+function addTrackPoint(lat, lng) {
+  const newPt = { lat, lng };
+
+  if (pathPoints.length > 0) {
+    const last = pathPoints[pathPoints.length - 1];
+    const d = haversine(last, newPt);
+    if (d < MIN_DIST) return; // too close, skip
+    totalDistance += d;
+    document.getElementById('track-dist').textContent =
+      totalDistance >= 1000
+        ? `${(totalDistance/1000).toFixed(2)}km`
+        : `${Math.round(totalDistance)}m`;
+  }
+
+  pathPoints.push(newPt);
+  drawPath();
+  updateAreaDisplay();
+  document.getElementById('point-count').textContent = pathPoints.length;
+}
+
+function undoLastPoint() {
+  if (pathPoints.length === 0) return;
+  pathPoints.pop();
+  drawPath();
+  updateAreaDisplay();
+  document.getElementById('point-count').textContent = pathPoints.length;
+  showToast('↩ 마지막 점 취소');
+}
+
+/* ════════════════════════════════════
+   DRAWING
+════════════════════════════════════ */
+function clearMapObjects() {
+  if (polylinePath) { polylinePath.setMap(null); polylinePath = null; }
+  if (polygon) { polygon.setMap(null); polygon = null; }
+}
+
+function drawPath() {
+  if (!map || pathPoints.length < 2) return;
+
+  const path = pathPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+
+  // Draw polyline (path)
+  if (polylinePath) {
+    polylinePath.setPath(path);
+  } else {
+    polylinePath = new kakao.maps.Polyline({
+      path: path,
+      strokeWeight: 3,
+      strokeColor: '#00e5a0',
+      strokeOpacity: 0.9,
+      strokeStyle: 'solid'
+    });
+    polylinePath.setMap(map);
+  }
+
+  // Draw closing line + polygon if >= 3 points
+  if (pathPoints.length >= 3) {
+    drawPolygon();
+  }
+}
+
+function drawPolygon() {
+  if (!map || pathPoints.length < 3) return;
+  const path = pathPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+
+  if (polygon) {
+    polygon.setPath(path);
+  } else {
     polygon = new kakao.maps.Polygon({
-      map, path,
+      path: path,
       strokeWeight: 2,
-      strokeColor: '#ff6b35',
-      strokeOpacity: 0.7,
-      fillColor: '#ff6b35',
-      fillOpacity: 0.15
+      strokeColor: '#00e5a0',
+      strokeOpacity: 0.8,
+      strokeStyle: 'dashed',
+      fillColor: '#00e5a0',
+      fillOpacity: 0.12
     });
+    polygon.setMap(map);
   }
 }
 
-function drawFinalPolygon() {
-  if (polyline) polyline.setMap(null);
-  if (polygon) polygon.setMap(null);
-
-  const path = trackPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
-
-  polygon = new kakao.maps.Polygon({
-    map, path,
-    strokeWeight: 3,
-    strokeColor: '#1a73e8',
-    strokeOpacity: 1,
-    fillColor: '#1a73e8',
-    fillOpacity: 0.2
-  });
-
-  // Fit to bounds
-  const bounds = new kakao.maps.LatLngBounds();
-  path.forEach(p => bounds.extend(p));
-  map.setBounds(bounds);
-}
-
-function clearDrawings() {
-  if (polyline) { polyline.setMap(null); polyline = null; }
-  if (polygon)  { polygon.setMap(null);  polygon  = null; }
-}
-
-function setMapType(type, btn) {
-  if (!map) return;
-  document.querySelectorAll('.map-type-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  const t = kakao.maps.MapTypeId;
-  const types = { ROADMAP: t.ROADMAP, SKYVIEW: t.SKYVIEW, HYBRID: t.HYBRID };
-  map.setMapTypeId(types[type] || t.ROADMAP);
-}
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+/* ════════════════════════════════════
    AREA CALCULATION
-   Spherical excess (Gauss–Bonnet)
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function calcArea() {
-  const pts = trackPoints;
-  if (pts.length < 3) return 0;
-  const R = 6371008.8; // Earth mean radius in meters
-  const toRad = d => d * Math.PI / 180;
-  let area = 0;
-  const n = pts.length;
+════════════════════════════════════ */
+function calcArea(points) {
+  if (points.length < 3) return 0;
 
+  // Local tangent plane projection (accurate for small areas)
+  const lat0 = points[0].lat * Math.PI / 180;
+  const lng0 = points[0].lng * Math.PI / 180;
+  const R = 6371000; // Earth radius meters
+
+  const xy = points.map(p => ({
+    x: R * (p.lng * Math.PI / 180 - lng0) * Math.cos(lat0),
+    y: R * (p.lat * Math.PI / 180 - lat0)
+  }));
+
+  // Shoelace formula
+  let area = 0;
+  const n = xy.length;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const lng1 = toRad(pts[i].lng);
-    const lng2 = toRad(pts[j].lng);
-    const lat1 = toRad(pts[i].lat);
-    const lat2 = toRad(pts[j].lat);
-    area += (lng2 - lng1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+    area += xy[i].x * xy[j].y - xy[j].x * xy[i].y;
+  }
+  return Math.abs(area) / 2;
+}
+
+function calcPerimeter(points) {
+  if (points.length < 2) return 0;
+  let p = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    p += haversine(points[i], points[j]);
+  }
+  return p;
+}
+
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const sin2 = Math.sin(dLat/2)**2
+    + Math.cos(a.lat*Math.PI/180) * Math.cos(b.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(sin2), Math.sqrt(1 - sin2));
+}
+
+function updateAreaDisplay() {
+  const m2 = calcArea(pathPoints);
+  const pyeong = m2 / 3.30579;
+  const perim = calcPerimeter(pathPoints);
+
+  const elM2 = document.getElementById('area-m2');
+  const elPy = document.getElementById('area-pyeong');
+
+  if (m2 > 0) {
+    elM2.textContent = formatNum(m2);
+    elM2.className = 'value';
+    elPy.textContent = formatNum(pyeong);
+    elPy.className = 'value';
+
+    // Helpful sub-label
+    let landType = '';
+    if (m2 < 33)       landType = '소규모 필지';
+    else if (m2 < 330) landType = '일반 주택 부지';
+    else if (m2 < 3300) landType = '중규모 토지';
+    else                landType = '대규모 토지';
+    document.getElementById('area-sub').textContent = landType;
   }
 
-  return Math.abs(area * R * R / 2);
+  document.getElementById('perimeter').textContent =
+    perim >= 1000 ? `${(perim/1000).toFixed(2)}km` : perim.toFixed(1);
 }
 
-function getDistance(p1, p2) {
-  const R = 6371008.8;
-  const d2r = Math.PI / 180;
-  const dLat = (p2.lat - p1.lat) * d2r;
-  const dLng = (p2.lng - p1.lng) * d2r;
-  const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*d2r)*Math.cos(p2.lat*d2r)*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+function formatNum(n) {
+  if (n >= 10000) return (n/10000).toFixed(2) + '만';
+  if (n >= 1000)  return n.toLocaleString('ko-KR', {maximumFractionDigits: 1});
+  return n.toFixed(2);
 }
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
-   UI UPDATES
-━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-function updateAreaOverlay(m2) {
-  document.getElementById('ov-m2').textContent = m2.toFixed(2);
-  if (m2 === 0) {
-    document.getElementById('ov-sub').textContent = '걷기 시작하면 자동 계산됩니다';
-  } else {
-    const p = (m2 / 3.30579).toFixed(2);
-    const h = (m2 / 10000).toFixed(4);
-    document.getElementById('ov-sub').textContent = `${p} 평 · ${h} ha`;
-  }
+/* ════════════════════════════════════
+   TOAST
+════════════════════════════════════ */
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
 }
-
-function showResult(m2) {
-  const pyeong = (m2 / 3.30579).toFixed(2);
-  const ha = (m2 / 10000).toFixed(4);
-  document.getElementById('res-m2').textContent = m2.toFixed(2);
-  document.getElementById('res-pyeong').textContent = pyeong;
-  document.getElementById('res-ha').textContent = ha;
-  document.getElementById('res-pts').textContent = trackPoints.length;
-  document.getElementById('modal-result').classList.remove('hidden');
-}
-
-function saveAndClose() {
-  const rec = {
-    id: Date.now(),
-    area: lastFinalArea.toFixed(2),
-    pyeong: (lastFinalArea / 3.30579).toFixed(2),
-    ha: (lastFinalArea / 10000).toFixed(4),
-    pts: trackPoints.length,
-    dist: totalDist.toFixed(0),
-    date: new Date().toLocaleString('ko-KR')
-  };
-  const list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
-  list.unshift(rec);
-  if (list.length > 100) list.pop();
-  localStorage.setItem('gps_area_list', JSON.stringify(list));
-  closeModal('modal-result');
-  toast('✅ 저장 완료!');
-}
-
-function showSavedList() {
-  const list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
-  const el = document.getElementById('saved-list-content');
-  if (list.length === 0) {
-    el.innerHTML = '<div class="empty-msg">저장된 측정이 없습니다</div>';
-  } else {
-    el.innerHTML = list.map(r => `
-      <div class="saved-item">
-        <div>
-          <div class="saved-area-big">${r.area} m²</div>
-          <div class="saved-area-sub">${r.pyeong} 평 · ${r.ha} ha · ${r.pts}포인트 · ${r.dist}m 이동</div>
-        </div>
-        <div>
-          <div class="saved-date">${r.date}</div>
-          <button class="del-btn" onclick="deleteRecord(${r.id})">삭제</button>
-        </div>
-      </div>
-    `).join('');
-  }
-  document.getElementById('modal-list').classList.remove('hidden');
-}
-
-function deleteRecord(id) {
-  let list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
-  list = list.filter(r => r.id !== id);
-  localStorage.setItem('gps_area_list', JSON.stringify(list));
-  showSavedList();
-}
-
-function setGpsStatus(state, text) {
-  const dot = document.getElementById('gps-dot');
-  const txt = document.getElementById('gps-text');
-  dot.className = 'gps-dot ' + state;
-  txt.textContent = text;
-}
-
-function closeModal(id) {
-  document.getElementById(id).classList.add('hidden');
-}
-
-function toast(msg, dur = 2400) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), dur);
-}
-
-// Close modals on backdrop tap
-document.querySelectorAll('.modal-backdrop').forEach(el => {
-  el.addEventListener('click', e => {
-    if (e.target === el && el.id !== 'modal-apikey') closeModal(el.id);
-  });
-});
 </script>
 </body>
 </html>
