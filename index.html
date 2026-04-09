@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GPS 토지 면적 측정기</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #0d5ec9;
+    --danger: #e53935;
+    --success: #2e7d32;
+    --warn: #f57c00;
+    --bg: #ffffff;
+    --bg2: #f5f7fa;
+    --bg3: #eef1f5;
+    --text: #1a1a2e;
+    --text2: #555;
+    --text3: #888;
+    --border: #dde3ec;
+    --card: #ffffff;
+    --shadow: 0 2px 12px rgba(0,0,0,0.12);
+    --radius: 14px;
+    --accent: #ff6b35;
+  }
+  html, body { height: 100%; overflow: hidden; font-family: -apple-system, 'Noto Sans KR', sans-serif; }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
+  #map-container { flex: 1; position: relative; overflow: hidden; }
+  #map { width: 100%; height: 100%; }
+
+  /* ── Top Bar ── */
+  #topbar {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  .app-title { font-size: 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .app-title svg { width: 20px; height: 20px; }
+  .map-type-group { display: flex; gap: 4px; }
+  .map-type-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg2);
+    color: var(--text2);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .map-type-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  /* ── Map overlays ── */
+  #gps-badge {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 5;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  #gps-badge.hidden { opacity: 0; }
+  .gps-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex-shrink: 0; }
+  .gps-dot.on { background: #4caf50; animation: blink 1.2s infinite; }
+  .gps-dot.warn { background: #ff9800; }
+  .gps-dot.err { background: #f44336; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  #area-overlay {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 18px;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    min-width: 200px;
+    box-shadow: var(--shadow);
+  }
+  #area-overlay .live-label { font-size: 11px; color: var(--text3); font-weight: 500; letter-spacing: 0.5px; }
+  #area-overlay .live-value { font-size: 22px; font-weight: 700; color: var(--primary); line-height: 1.2; }
+  #area-overlay .live-sub { font-size: 12px; color: var(--text2); }
+
+  #locate-btn {
+    position: absolute;
+    top: 10px; right: 12px;
+    width: 38px; height: 38px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 5;
+    box-shadow: var(--shadow);
+  }
+
+  /* ── Bottom Panel ── */
+  #bottom {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding: 12px 14px 14px;
+    flex-shrink: 0;
+  }
+  #status-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text3);
+    margin-bottom: 10px;
+    padding: 0 2px;
+  }
+  .stat-chip { display: flex; align-items: center; gap: 4px; }
+  .stat-num { font-weight: 600; color: var(--text2); }
+
+  #btn-row { display: flex; gap: 8px; }
+  .btn {
+    flex: 1;
+    height: 48px;
+    border-radius: 12px;
+    border: none;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: transform 0.1s, opacity 0.15s;
+    -webkit-user-select: none;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn-start { background: var(--success); color: #fff; }
+  .btn-stop  { background: var(--danger); color: #fff; }
+  .btn-reset { background: var(--bg3); color: var(--text2); flex: 0.6; }
+  .btn-list  { background: var(--bg3); color: var(--text2); flex: 0.6; }
+
+  /* ── Modal backdrop ── */
+  .modal-backdrop {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .modal-backdrop.hidden { display: none; }
+
+  .modal-sheet {
+    background: var(--bg);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 520px;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0));
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+  .sheet-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .sheet-sub { font-size: 13px; color: var(--text3); margin-bottom: 16px; line-height: 1.6; }
+  .sheet-sub a { color: var(--primary); }
+
+  .input-field {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--bg2);
+    margin-bottom: 12px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .input-field:focus { border-color: var(--primary); background: var(--bg); }
+  .input-field::placeholder { color: var(--text3); }
+
+  .btn-full {
+    width: 100%;
+    height: 50px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--primary);
+    color: #fff;
+    margin-bottom: 8px;
+    transition: background 0.15s;
+  }
+  .btn-full:active { background: var(--primary-dark); }
+  .btn-full.secondary { background: var(--bg3); color: var(--text2); }
+
+  /* Saved list */
+  .saved-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: var(--bg2);
+  }
+  .saved-area-big { font-size: 18px; font-weight: 700; color: var(--primary); }
+  .saved-area-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .saved-date { font-size: 11px; color: var(--text3); text-align: right; }
+  .del-btn {
+    margin-top: 6px;
+    padding: 3px 10px;
+    border: 1px solid #ffcdd2;
+    border-radius: 6px;
+    background: #fff;
+    color: var(--danger);
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .empty-msg { text-align: center; padding: 32px 0; color: var(--text3); font-size: 14px; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 160px; left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(20,20,30,0.88);
+    color: #fff;
+    padding: 9px 20px;
+    border-radius: 22px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Walking indicator */
+  #walk-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 4;
+    display: none;
+  }
+  #walk-ring.active { display: block; }
+  .ring-circle {
+    width: 20px; height: 20px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    animation: ripple 1.5s infinite ease-out;
+  }
+  @keyframes ripple {
+    0% { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(4); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="app-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)">
+        <polygon points="3,3 21,12 3,21 7,12"/>
+      </svg>
+      GPS 면적 측정기
+    </div>
+    <div class="map-type-group">
+      <button class="map-type-btn active" onclick="setMapType('ROADMAP',this)">일반</button>
+      <button class="map-type-btn" onclick="setMapType('SKYVIEW',this)">항공</button>
+      <button class="map-type-btn" onclick="setMapType('HYBRID',this)">하이브리드</button>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- GPS status badge -->
+    <div id="gps-badge">
+      <div class="gps-dot" id="gps-dot"></div>
+      <span id="gps-text">GPS 초기화 중...</span>
+    </div>
+
+    <!-- Area live overlay -->
+    <div id="area-overlay">
+      <div class="live-label">측정 면적</div>
+      <div class="live-value"><span id="ov-m2">0.00</span> <span style="font-size:13px;font-weight:500;color:var(--text3)">m²</span></div>
+      <div class="live-sub" id="ov-sub">걷기 시작하면 자동 계산됩니다</div>
+    </div>
+
+    <!-- Locate button -->
+    <div id="locate-btn" onclick="goToMyLocation()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+      </svg>
+    </div>
+
+    <div id="walk-ring"><div class="ring-circle"></div></div>
+  </div>
+
+  <!-- Bottom panel -->
+  <div id="bottom">
+    <div id="status-row">
+      <div class="stat-chip">
+        <span>포인트</span>
+        <span class="stat-num" id="s-pts">0</span>
+        <span>개</span>
+      </div>
+      <div class="stat-chip">
+        <span>거리</span>
+        <span class="stat-num" id="s-dist">0</span>
+        <span>m</span>
+      </div>
+      <div class="stat-chip">
+        <span>정확도</span>
+        <span class="stat-num" id="s-acc">-</span>
+        <span>m</span>
+      </div>
+    </div>
+    <div id="btn-row">
+      <button class="btn btn-start" id="btn-start" onclick="startTracking()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 0 0-10 10h3a7 7 0 0 1 7-7V2zm0 20a10 10 0 0 0 10-10h-3a7 7 0 0 1-7 7v3zM2 12a10 10 0 0 0 10 10v-3a7 7 0 0 1-7-7H2zm20 0a10 10 0 0 0-10-10V5a7 7 0 0 1 7 7h3z" fill="rgba(255,255,255,0.6)"/></svg>
+        측정 시작
+      </button>
+      <button class="btn btn-stop" id="btn-stop" onclick="stopTracking()" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        완료
+      </button>
+      <button class="btn btn-reset" onclick="resetAll()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 9M21 3v6h-6"/></svg>
+        초기화
+      </button>
+      <button class="btn btn-list" onclick="showSavedList()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        목록
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ══ API Key Modal ══ -->
+<div class="modal-backdrop" id="modal-apikey">
+  <div class="modal-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🔑 카카오맵 API 키 설정</div>
+    <div class="sheet-sub">
+      <a href="https://developers.kakao.com" target="_blank">developers.kakao.com</a>에서 앱을 생성하고<br>
+      <strong>JavaScript 키</strong>를 입력하세요.<br><br>
+      ⚠️ <strong>플랫폼 등록 필수:</strong><br>
+      앱 설정 → 플랫폼 → Web에 사용할 도메인을 추가해야 합니다.<br>
+      (예: <code>https://yourname.github.io</code> 또는 <code>http://localhost:3000</code>)
+    </div>
+    <input class="input-field" type="text" id="api-key-input" placeholder="ae20583b8958dce8eed6fb8f0d9179cf" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="btn-full" onclick="confirmApiKey()">지도 로드하기</button>
+    <div style="font-size:12px; color:var(--text3); text-align:center; margin-top:4px;">
+      키는 이 기기에만 저장됩니다 (localStorage)
+    </div>
+  </div>
+</div>
+
+<!-- ══ Saved List Modal ══ -->
+<div class="modal-backdrop hidden" id="modal-list">
+  <div class="modal-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">저장된 측정 목록</div>
+    <div id="saved-list-content"></div>
+    <button class="btn-full secondary" onclick="closeModal('modal-list')">닫기</button>
+  </div>
+</div>
+
+<!-- ══ Result Modal ══ -->
+<div class="modal-backdrop hidden" id="modal-result">
+  <div class="modal-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📐 측정 완료</div>
+    <div style="background:var(--bg2); border-radius:12px; padding:16px 20px; margin-bottom:14px; text-align:center;">
+      <div style="font-size:13px; color:var(--text3); margin-bottom:4px;">측정 면적</div>
+      <div style="font-size:36px; font-weight:700; color:var(--primary);" id="res-m2">0</div>
+      <div style="font-size:14px; color:var(--text2);">m²</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:14px;">
+        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
+          <div style="font-size:11px; color:var(--text3);">평</div>
+          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-pyeong">0</div>
+        </div>
+        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
+          <div style="font-size:11px; color:var(--text3);">ha</div>
+          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-ha">0</div>
+        </div>
+        <div style="background:white; border-radius:8px; padding:10px 0; border:1px solid var(--border);">
+          <div style="font-size:11px; color:var(--text3);">포인트</div>
+          <div style="font-size:16px; font-weight:700; color:var(--text);" id="res-pts">0</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-full" onclick="saveAndClose()">저장하고 닫기</button>
+    <button class="btn-full secondary" onclick="closeModal('modal-result')">닫기 (저장 안 함)</button>
+  </div>
+</div>
+
+<script>
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+let map = null;
+let isTracking = false;
+let trackPoints = [];    // [{lat, lng}]
+let watchId = null;
+let curMarker = null;    // current position marker
+let polyline = null;
+let polygon = null;
+let lastFinalArea = 0;
+let totalDist = 0;
+let MIN_MOVE_METERS = 2; // minimum movement to register a point
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   INIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('kakao_app_key');
+  if (saved) {
+    document.getElementById('api-key-input').value = saved;
+    document.getElementById('modal-apikey').style.display = 'none';
+    loadKakao(saved);
+  }
+  startGpsWatch(); // start watching GPS immediately for status
+});
+
+function confirmApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { toast('API 키를 입력해주세요.'); return; }
+  localStorage.setItem('kakao_app_key', key);
+  closeModal('modal-apikey');
+  loadKakao(key);
+}
+
+function loadKakao(key) {
+  const s = document.createElement('script');
+  s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&autoload=false`;
+  s.onerror = () => {
+    toast('❌ API 키 오류 또는 도메인 미등록');
+    document.getElementById('modal-apikey').style.display = 'flex';
+    localStorage.removeItem('kakao_app_key');
+  };
+  s.onload = () => {
+    kakao.maps.load(() => {
+      initMap();
+    });
+  };
+  document.head.appendChild(s);
+}
+
+function initMap() {
+  const container = document.getElementById('map');
+  const opts = { center: new kakao.maps.LatLng(37.5665, 126.9780), level: 4 };
+  map = new kakao.maps.Map(container, opts);
+
+  // Try to center on user's current location
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
+      updateCurMarker(pos.coords.latitude, pos.coords.longitude);
+    }, null, { enableHighAccuracy: true, timeout: 8000 });
+  }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function startGpsWatch() {
+  if (!navigator.geolocation) {
+    setGpsStatus('err', 'GPS 미지원');
+    return;
+  }
+  setGpsStatus('warn', 'GPS 초기화 중...');
+
+  watchId = navigator.geolocation.watchPosition(
+    onGpsUpdate,
+    onGpsError,
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function onGpsUpdate(pos) {
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  document.getElementById('s-acc').textContent = accuracy < 1000 ? accuracy.toFixed(0) : '낮음';
+  setGpsStatus('on', isTracking ? 'GPS 추적 중' : 'GPS 연결됨');
+
+  if (map) updateCurMarker(lat, lng);
+  if (!isTracking) return;
+
+  const newPt = { lat, lng };
+  const prev = trackPoints[trackPoints.length - 1];
+
+  // Skip if not moved enough (reduces GPS noise)
+  if (prev && getDistance(prev, newPt) < MIN_MOVE_METERS) return;
+
+  // Skip obviously bad accuracy (> 30m while measuring)
+  if (accuracy > 50) {
+    setGpsStatus('warn', `정확도 낮음 (${accuracy.toFixed(0)}m)`);
+    return;
+  }
+
+  if (prev) totalDist += getDistance(prev, newPt);
+  trackPoints.push(newPt);
+
+  document.getElementById('s-pts').textContent = trackPoints.length;
+  document.getElementById('s-dist').textContent = totalDist.toFixed(0);
+
+  if (map) {
+    map.setCenter(new kakao.maps.LatLng(lat, lng));
+    redrawPath();
+    if (trackPoints.length >= 3) {
+      const a = calcArea();
+      updateAreaOverlay(a);
+    }
+  }
+}
+
+function onGpsError(err) {
+  const msgs = { 1: '위치 권한 거부됨', 2: 'GPS 신호 없음', 3: 'GPS 시간 초과' };
+  setGpsStatus('err', msgs[err.code] || 'GPS 오류');
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TRACKING CONTROLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function startTracking() {
+  if (!map) { toast('먼저 API 키를 입력해주세요'); document.getElementById('modal-apikey').style.display='flex'; return; }
+
+  isTracking = true;
+  trackPoints = [];
+  totalDist = 0;
+  clearDrawings();
+
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-stop').disabled = false;
+  document.getElementById('s-pts').textContent = '0';
+  document.getElementById('s-dist').textContent = '0';
+  document.getElementById('walk-ring').classList.add('active');
+  updateAreaOverlay(0);
+  setGpsStatus('on', 'GPS 추적 중');
+  toast('✅ 측정 시작! 걷기 시작하세요');
+}
+
+function stopTracking() {
+  isTracking = false;
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('walk-ring').classList.remove('active');
+  setGpsStatus('on', 'GPS 연결됨');
+
+  if (trackPoints.length < 3) {
+    toast('⚠️ 최소 3포인트 이상 필요합니다 (더 걸어주세요)');
+    return;
+  }
+
+  drawFinalPolygon();
+  lastFinalArea = calcArea();
+  showResult(lastFinalArea);
+}
+
+function resetAll() {
+  isTracking = false;
+  trackPoints = [];
+  totalDist = 0;
+  clearDrawings();
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('walk-ring').classList.remove('active');
+  document.getElementById('s-pts').textContent = '0';
+  document.getElementById('s-dist').textContent = '0';
+  updateAreaOverlay(0);
+  toast('초기화 완료');
+}
+
+function goToMyLocation() {
+  if (!map || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
+    map.setLevel(4);
+  });
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MAP DRAWING
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function updateCurMarker(lat, lng) {
+  if (!map) return;
+  const pos = new kakao.maps.LatLng(lat, lng);
+  if (curMarker) {
+    curMarker.setPosition(pos);
+  } else {
+    curMarker = new kakao.maps.CustomOverlay({
+      position: pos,
+      content: `<div style="width:16px;height:16px;background:#1a73e8;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>`,
+      zIndex: 10
+    });
+    curMarker.setMap(map);
+  }
+}
+
+function redrawPath() {
+  if (polyline) polyline.setMap(null);
+  if (polygon) polygon.setMap(null);
+
+  const path = trackPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+  if (path.length < 2) return;
+
+  polyline = new kakao.maps.Polyline({
+    map, path,
+    strokeWeight: 4,
+    strokeColor: '#ff6b35',
+    strokeOpacity: 0.9,
+    strokeStyle: 'solid'
+  });
+
+  if (path.length >= 3) {
+    polygon = new kakao.maps.Polygon({
+      map, path,
+      strokeWeight: 2,
+      strokeColor: '#ff6b35',
+      strokeOpacity: 0.7,
+      fillColor: '#ff6b35',
+      fillOpacity: 0.15
+    });
+  }
+}
+
+function drawFinalPolygon() {
+  if (polyline) polyline.setMap(null);
+  if (polygon) polygon.setMap(null);
+
+  const path = trackPoints.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+
+  polygon = new kakao.maps.Polygon({
+    map, path,
+    strokeWeight: 3,
+    strokeColor: '#1a73e8',
+    strokeOpacity: 1,
+    fillColor: '#1a73e8',
+    fillOpacity: 0.2
+  });
+
+  // Fit to bounds
+  const bounds = new kakao.maps.LatLngBounds();
+  path.forEach(p => bounds.extend(p));
+  map.setBounds(bounds);
+}
+
+function clearDrawings() {
+  if (polyline) { polyline.setMap(null); polyline = null; }
+  if (polygon)  { polygon.setMap(null);  polygon  = null; }
+}
+
+function setMapType(type, btn) {
+  if (!map) return;
+  document.querySelectorAll('.map-type-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const t = kakao.maps.MapTypeId;
+  const types = { ROADMAP: t.ROADMAP, SKYVIEW: t.SKYVIEW, HYBRID: t.HYBRID };
+  map.setMapTypeId(types[type] || t.ROADMAP);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   AREA CALCULATION
+   Spherical excess (Gauss–Bonnet)
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function calcArea() {
+  const pts = trackPoints;
+  if (pts.length < 3) return 0;
+  const R = 6371008.8; // Earth mean radius in meters
+  const toRad = d => d * Math.PI / 180;
+  let area = 0;
+  const n = pts.length;
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const lng1 = toRad(pts[i].lng);
+    const lng2 = toRad(pts[j].lng);
+    const lat1 = toRad(pts[i].lat);
+    const lat2 = toRad(pts[j].lat);
+    area += (lng2 - lng1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+
+  return Math.abs(area * R * R / 2);
+}
+
+function getDistance(p1, p2) {
+  const R = 6371008.8;
+  const d2r = Math.PI / 180;
+  const dLat = (p2.lat - p1.lat) * d2r;
+  const dLng = (p2.lng - p1.lng) * d2r;
+  const a = Math.sin(dLat/2)**2 + Math.cos(p1.lat*d2r)*Math.cos(p2.lat*d2r)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   UI UPDATES
+━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function updateAreaOverlay(m2) {
+  document.getElementById('ov-m2').textContent = m2.toFixed(2);
+  if (m2 === 0) {
+    document.getElementById('ov-sub').textContent = '걷기 시작하면 자동 계산됩니다';
+  } else {
+    const p = (m2 / 3.30579).toFixed(2);
+    const h = (m2 / 10000).toFixed(4);
+    document.getElementById('ov-sub').textContent = `${p} 평 · ${h} ha`;
+  }
+}
+
+function showResult(m2) {
+  const pyeong = (m2 / 3.30579).toFixed(2);
+  const ha = (m2 / 10000).toFixed(4);
+  document.getElementById('res-m2').textContent = m2.toFixed(2);
+  document.getElementById('res-pyeong').textContent = pyeong;
+  document.getElementById('res-ha').textContent = ha;
+  document.getElementById('res-pts').textContent = trackPoints.length;
+  document.getElementById('modal-result').classList.remove('hidden');
+}
+
+function saveAndClose() {
+  const rec = {
+    id: Date.now(),
+    area: lastFinalArea.toFixed(2),
+    pyeong: (lastFinalArea / 3.30579).toFixed(2),
+    ha: (lastFinalArea / 10000).toFixed(4),
+    pts: trackPoints.length,
+    dist: totalDist.toFixed(0),
+    date: new Date().toLocaleString('ko-KR')
+  };
+  const list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
+  list.unshift(rec);
+  if (list.length > 100) list.pop();
+  localStorage.setItem('gps_area_list', JSON.stringify(list));
+  closeModal('modal-result');
+  toast('✅ 저장 완료!');
+}
+
+function showSavedList() {
+  const list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
+  const el = document.getElementById('saved-list-content');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="empty-msg">저장된 측정이 없습니다</div>';
+  } else {
+    el.innerHTML = list.map(r => `
+      <div class="saved-item">
+        <div>
+          <div class="saved-area-big">${r.area} m²</div>
+          <div class="saved-area-sub">${r.pyeong} 평 · ${r.ha} ha · ${r.pts}포인트 · ${r.dist}m 이동</div>
+        </div>
+        <div>
+          <div class="saved-date">${r.date}</div>
+          <button class="del-btn" onclick="deleteRecord(${r.id})">삭제</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('modal-list').classList.remove('hidden');
+}
+
+function deleteRecord(id) {
+  let list = JSON.parse(localStorage.getItem('gps_area_list') || '[]');
+  list = list.filter(r => r.id !== id);
+  localStorage.setItem('gps_area_list', JSON.stringify(list));
+  showSavedList();
+}
+
+function setGpsStatus(state, text) {
+  const dot = document.getElementById('gps-dot');
+  const txt = document.getElementById('gps-text');
+  dot.className = 'gps-dot ' + state;
+  txt.textContent = text;
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+function toast(msg, dur = 2400) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// Close modals on backdrop tap
+document.querySelectorAll('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', e => {
+    if (e.target === el && el.id !== 'modal-apikey') closeModal(el.id);
+  });
+});
+</script>
+</body>
+</html>
