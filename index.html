@@ -130,8 +130,9 @@
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; font-size: 22px; transition: all 0.2s;
     }
-    .my-loc-btn:active { transform: scale(0.92); }
+    .my-loc-btn:active { transform: scale(0.92); background: var(--surface2); }
     .my-loc-btn.loading { animation: spin 1s linear infinite; }
+    .my-loc-btn.active-loc { border-color: var(--accent); color: var(--accent); }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ─── UNDO BTN ─── */
@@ -381,6 +382,7 @@ let polylinePath = null;
 let polygon = null;
 let curLocMarker = null;
 let curLocOverlay = null;
+let curLocCircle = null;
 let currentMapType = 'road';
 let cadastralOverlay = false;
 let lastPosition = null;
@@ -531,7 +533,7 @@ function onPositionUpdate(pos) {
   }
 
   // Update current location marker
-  updateCurLocMarker(lat, lng);
+  updateCurLocMarker(lat, lng, accuracy);
 
   // If tracking, add point
   if (isTracking) {
@@ -552,10 +554,17 @@ function goToMyLocation() {
   const btn = document.getElementById('my-loc-btn');
   btn.classList.add('loading');
 
+  const flashActive = () => {
+    btn.classList.add('active-loc');
+    setTimeout(() => btn.classList.remove('active-loc'), 1200);
+  };
+
   if (lastPosition) {
     map.setCenter(new kakao.maps.LatLng(lastPosition.lat, lastPosition.lng));
     map.setLevel(3);
     btn.classList.remove('loading');
+    flashActive();
+    showToast('📍 현재 위치로 이동했습니다');
     return;
   }
 
@@ -564,18 +573,39 @@ function goToMyLocation() {
       map.setCenter(new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude));
       map.setLevel(3);
       btn.classList.remove('loading');
+      flashActive();
+      showToast('📍 현재 위치로 이동했습니다');
     },
     (err) => {
       btn.classList.remove('loading');
-      showToast('📍 위치를 가져올 수 없습니다');
+      showToast('📍 위치를 가져올 수 없습니다. 위치 권한을 확인해주세요.');
     },
     { enableHighAccuracy: true, timeout: 10000 }
   );
 }
 
-function updateCurLocMarker(lat, lng) {
+function updateCurLocMarker(lat, lng, accuracy) {
   if (!map) return;
   const latlng = new kakao.maps.LatLng(lat, lng);
+
+  // ── GPS 정확도 원(circle) ──
+  if (curLocCircle) {
+    curLocCircle.setPosition(latlng);
+    curLocCircle.setRadius(Math.max(accuracy || 10, 5));
+  } else {
+    curLocCircle = new kakao.maps.Circle({
+      center: latlng,
+      radius: Math.max(accuracy || 10, 5),
+      strokeWeight: 1,
+      strokeColor: '#00e5a0',
+      strokeOpacity: 0.6,
+      strokeStyle: 'solid',
+      fillColor: '#00e5a0',
+      fillOpacity: 0.12,
+      zIndex: 5
+    });
+    curLocCircle.setMap(map);
+  }
 
   if (curLocMarker) {
     curLocMarker.setPosition(latlng);
